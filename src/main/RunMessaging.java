@@ -39,7 +39,6 @@ public class RunMessaging {
             // open all connections in the broker, client and credit applications
             broker.start();
             creditBureau.start();
-            ing.start();
 
             // send three requests
             client.sendRequest(new ClientRequest(1, 100000, 24));

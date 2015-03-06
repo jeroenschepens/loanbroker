@@ -1,31 +1,18 @@
 package bank;
 
 import bank.gui.BankFrame;
-import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.Destination;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.MessageProducer;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import javax.naming.Context;
-import javax.naming.InitialContext;
 import main.JMSSettings;
 import main.JMSSettings.RunMode;
 
 /**
- * This class represents one Bank Application.
- * It should eventually:
- *  1. Receive BankQuoteRequest-s for a loan from the LoanBroker Messaging-Oriented Middleware (MOM).
- *  2. Randomly create BankQuoteReply for each request (use method "computeBankReply").
- *  3. Send the BankQuoteReply from the LoanBroker MOM.
+ * This class represents one Bank Application. It should eventually: 1. Receive
+ * BankQuoteRequest-s for a loan from the LoanBroker Messaging-Oriented
+ * Middleware (MOM). 2. Randomly create BankQuoteReply for each request (use
+ * method "computeBankReply"). 3. Send the BankQuoteReply from the LoanBroker
+ * MOM.
  */
 public class Bank {
 
@@ -38,47 +25,24 @@ public class Bank {
     private int quoteCounter = 0;
     protected Random random = new Random();
     private BankFrame frame; // GUI
-    private final BankSerializer serializer; // serializer BankQuoteRequest BankQuoteReply to/from XML:
-    /**
-     * attributes for connection to JMS
-     */
-    private final Connection connection; // connection to the JMS server
-    protected Session session; // JMS session for creating producers, consumers and messages
-    private final MessageProducer producer; // producer for sending messages
-    private final MessageConsumer consumer; // consumer for receiving messages
+
+    private final LoanBrokerGateway lbg;
 
     public Bank(String bankName, String bankRequestQueue, String bankReplyQueue) throws Exception {
         super();
         this.name = bankName;
-        // connect to JMS
-        Properties props = new Properties();
-        props.setProperty(Context.INITIAL_CONTEXT_FACTORY,"org.apache.activemq.jndi.ActiveMQInitialContextFactory");
-        props.setProperty(Context.PROVIDER_URL,"tcp://localhost:61616");
-        props.put( ( "queue." + bankRequestQueue ) ,bankRequestQueue);
-        props.put( ( "queue." + bankReplyQueue ) ,bankReplyQueue);        
-        Context jndiContext = new InitialContext(props);
-       
-        ConnectionFactory connectionFactory = (ConnectionFactory) jndiContext.lookup("ConnectionFactory");
-        connection = connectionFactory.createConnection();
-        session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
-        // connect to the sender channel
-        Destination senderDestination = (Destination) jndiContext.lookup(bankReplyQueue);
-        producer = session.createProducer(senderDestination);
+        lbg = new LoanBrokerGateway(bankReplyQueue, bankRequestQueue) {
 
-        // connect to the receiver channel and register as a listener on it
-        Destination receiverDestination = (Destination) jndiContext.lookup(bankRequestQueue);
-        consumer = session.createConsumer(receiverDestination);
-        consumer.setMessageListener(new MessageListener() {
-
-            public void onMessage(Message msg) {
-                onBankQuoteRequest((TextMessage) msg);
+            @Override
+            public void receivedQuoteRequest(BankQuoteRequest request) {
+                onBankQuoteRequest(request);
             }
-        });
+
+        };
 
         // create the serializer
-        serializer = new BankSerializer();
-
+        //serializer = new BankSerializer();
         // create GUI
         frame = new BankFrame(this, name);
         java.awt.EventQueue.invokeLater(new Runnable() {
@@ -90,25 +54,25 @@ public class Bank {
         });
     }
 
-    public boolean onSendBankReplyClicked(BankQuoteRequest request, double interest, int error)
-    {
-         BankQuoteReply reply = createReply(interest,error);
-         return sendReply(request, reply);
+    public boolean onSendBankReplyClicked(BankQuoteRequest request, double interest, int error) {
+        BankQuoteReply reply = createReply(interest, error);
+        return sendReply(request, reply);
     }
-    
-    public BankQuoteReply createReply(double interest, int error){
-       String quoteID = name + "-" + String.valueOf(++quoteCounter);
-       return new BankQuoteReply(interest, quoteID, error);
+
+    public BankQuoteReply createReply(double interest, int error) {
+        String quoteID = name + "-" + String.valueOf(++quoteCounter);
+        return new BankQuoteReply(interest, quoteID, error);
     }
 
     /**
-     * Processes a new request message. Only if the debug_mode is true, this method
-     * randomly generates a reply and sends it back.
+     * Processes a new request message. Only if the debug_mode is true, this
+     * method randomly generates a reply and sends it back.
+     *
      * @param message
      */
-    private void onBankQuoteRequest(TextMessage message) {
+    private void onBankQuoteRequest(BankQuoteRequest request) {
         try {
-            BankQuoteRequest request = serializer.requestFromString(message.getText());
+
             frame.addRequest(request);
             if (JMSSettings.getRunMode() == RunMode.AUTOMATICALLY) { // only in automatic mode send immediately random reply
 
@@ -123,17 +87,17 @@ public class Bank {
 
     /**
      * Sends the reply for one request.
+     *
      * @param request for which the reply is sent
      * @param reply
      * @return true if the reply is successfully sent, false if sending fails
      */
     private boolean sendReply(BankQuoteRequest request, BankQuoteReply reply) {
         try {
-            Message replyMessage = session.createTextMessage(serializer.replyToString(reply));
-            producer.send(replyMessage);
+            lbg.sendQuoteOffer(request, reply);
             frame.addReply(request, reply);
             return true;
-        } catch (JMSException ex) {
+        } catch (Exception ex) {
             Logger.getLogger(Bank.class.getName()).log(Level.SEVERE, null, ex);
             return false;
         }
@@ -141,6 +105,7 @@ public class Bank {
 
     /**
      * Randomly generates a reply for the given request.
+     *
      * @param request for which the reply should be generated.
      * @return randomly generated reply
      */
@@ -155,12 +120,13 @@ public class Bank {
 
             error = NO_ERROR_CODE;
         }
-        return createReply(interest,error);
+        return createReply(interest, error);
 
     }
 
     /**
      * Rounds a decimal number.
+     *
      * @param value is the decimal value to be rounded.
      * @param decimals the number of decimal places after rounding.
      * @return
@@ -170,16 +136,5 @@ public class Bank {
         double result = Math.round(value * temp);
         result = result / temp;
         return result;
-    }
-
-    /**
-     * Opens connection to JMS,so that messages can be send and received.
-     */
-    public void start() {
-        try {
-            connection.start();
-        } catch (JMSException ex) {
-            Logger.getLogger(Bank.class.getName()).log(Level.SEVERE, null, ex);
-        }
     }
 }
