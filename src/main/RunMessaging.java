@@ -1,6 +1,5 @@
 package main;
 
-
 import bank.Bank;
 import client.ClientRequest;
 import client.LoanTestClient;
@@ -9,7 +8,7 @@ import loanbroker.LoanBroker;
 
 /**
  * This application tests the LoanBroker system.
- * 
+ *
  */
 public class RunMessaging {
 
@@ -30,9 +29,9 @@ public class RunMessaging {
 
             // create a Client Application
             LoanTestClient client = new LoanTestClient("The Hypotheker", clientRequestQueue, clientReplyQueue);
-            
+
             // create the CreditBureau Application
-            CreditBureau creditBureau = new CreditBureau(creditRequestQueue,creditReplyQueue);
+            CreditBureau creditBureau = new CreditBureau(creditRequestQueue, creditReplyQueue);
 
             // create one Bank application
             Bank ing = new Bank("ING", ingRequestQueue, bankReplyQueue);
@@ -41,7 +40,6 @@ public class RunMessaging {
             broker.start();
             creditBureau.start();
             ing.start();
-            client.start();
 
             // send three requests
             client.sendRequest(new ClientRequest(1, 100000, 24));
@@ -49,7 +47,7 @@ public class RunMessaging {
             client.sendRequest(new ClientRequest(3, 100, 5));
 
         } catch (Exception ex) {
-            ex.printStackTrace();
+            System.out.println(ex.getMessage());
         }
 
     }
