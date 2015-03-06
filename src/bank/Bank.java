@@ -26,13 +26,13 @@ public class Bank {
     protected Random random = new Random();
     private BankFrame frame; // GUI
 
-    private final LoanBrokerGateway lbg;
+    private final LoanBrokerGateway loanGateway;
 
     public Bank(String bankName, String bankRequestQueue, String bankReplyQueue) throws Exception {
         super();
         this.name = bankName;
 
-        lbg = new LoanBrokerGateway(bankReplyQueue, bankRequestQueue) {
+        loanGateway = new LoanBrokerGateway(bankReplyQueue, bankRequestQueue) {
 
             @Override
             public void receivedQuoteRequest(BankQuoteRequest request) {
@@ -94,7 +94,7 @@ public class Bank {
      */
     private boolean sendReply(BankQuoteRequest request, BankQuoteReply reply) {
         try {
-            lbg.sendQuoteOffer(request, reply);
+            loanGateway.sendQuoteOffer(request, reply);
             frame.addReply(request, reply);
             return true;
         } catch (Exception ex) {
