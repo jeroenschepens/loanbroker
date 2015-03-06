@@ -36,9 +36,6 @@ public class RunMessaging {
             // create one Bank application
             Bank ing = new Bank("ING", ingRequestQueue, bankReplyQueue);
 
-            // open all connections in the broker, client and credit applications
-            broker.start();
-
             // send three requests
             client.sendRequest(new ClientRequest(1, 100000, 24));
             client.sendRequest(new ClientRequest(2, 88888, 5));
