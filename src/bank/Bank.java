@@ -24,31 +24,30 @@ public class Bank {
     private final int maxLoanTerm = 10000;
     private int quoteCounter = 0;
     protected Random random = new Random();
-    private BankFrame frame; // GUI
+    private BankFrame frame;
 
-    private final LoanBrokerGateway loanGateway;
+    private LoanBrokerGateway gateway;
 
-    public Bank(String bankName, String bankRequestQueue, String bankReplyQueue) throws Exception {
-        super();
+    public Bank(String bankName, String bankRequestQueue) throws Exception {
         this.name = bankName;
-
-        loanGateway = new LoanBrokerGateway(bankReplyQueue, bankRequestQueue) {
+        this.gateway = new LoanBrokerGateway(bankRequestQueue) {
 
             @Override
-            public void receivedQuoteRequest(BankQuoteRequest request) {
-                onBankQuoteRequest(request);
+            public void onBankQuoteRequestReceived(BankQuoteRequest request) {
+                frame.addRequest(request);
+                if (JMSSettings.getRunMode() == RunMode.AUTOMATICALLY) {
+                    BankQuoteReply reply = computeReplyRandomly(request);
+                    sendBankQuoteReply(request, reply);
+                }
             }
-
         };
 
-        // create the serializer
-        //serializer = new BankSerializer();
         // create GUI
         frame = new BankFrame(this, name);
         java.awt.EventQueue.invokeLater(new Runnable() {
 
+            @Override
             public void run() {
-
                 frame.setVisible(true);
             }
         });
@@ -56,33 +55,12 @@ public class Bank {
 
     public boolean onSendBankReplyClicked(BankQuoteRequest request, double interest, int error) {
         BankQuoteReply reply = createReply(interest, error);
-        return sendReply(request, reply);
+        return sendBankQuoteReply(request, reply);
     }
 
     public BankQuoteReply createReply(double interest, int error) {
         String quoteID = name + "-" + String.valueOf(++quoteCounter);
         return new BankQuoteReply(interest, quoteID, error);
-    }
-
-    /**
-     * Processes a new request message. Only if the debug_mode is true, this
-     * method randomly generates a reply and sends it back.
-     *
-     * @param message
-     */
-    private void onBankQuoteRequest(BankQuoteRequest request) {
-        try {
-
-            frame.addRequest(request);
-            if (JMSSettings.getRunMode() == RunMode.AUTOMATICALLY) { // only in automatic mode send immediately random reply
-
-                BankQuoteReply reply = computeReplyRandomly(request);
-                Bank.this.sendReply(request, reply);
-
-            }
-        } catch (Exception ex) {
-            Logger.getLogger(Bank.class.getName()).log(Level.SEVERE, null, ex);
-        }
     }
 
     /**
@@ -92,10 +70,10 @@ public class Bank {
      * @param reply
      * @return true if the reply is successfully sent, false if sending fails
      */
-    private boolean sendReply(BankQuoteRequest request, BankQuoteReply reply) {
+    private boolean sendBankQuoteReply(BankQuoteRequest request, BankQuoteReply reply) {
         try {
-            loanGateway.sendQuoteOffer(request, reply);
             frame.addReply(request, reply);
+            gateway.sendReply(request, reply);
             return true;
         } catch (Exception ex) {
             Logger.getLogger(Bank.class.getName()).log(Level.SEVERE, null, ex);
@@ -136,5 +114,10 @@ public class Bank {
         double result = Math.round(value * temp);
         result = result / temp;
         return result;
+    }
+
+    public void start()
+            throws Exception {
+        gateway.start();
     }
 }

@@ -5,53 +5,26 @@
  */
 package creditbureau;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageListener;
-import javax.jms.TextMessage;
-import javax.naming.NamingException;
-import jms.MessagingGateway;
+import jms.AsynchronousReplier;
+import jms.RequestListener;
 
 /**
  *
  * @author Jeroen
  */
-public abstract class LoanBrokerGateway {
+public abstract class LoanBrokerGateway extends AsynchronousReplier<CreditRequest, CreditReply> {
 
-    CreditSerializer serializer;
-    MessagingGateway messagingGateway;
+    public LoanBrokerGateway(String requestQueue)
+            throws Exception {
+        super(requestQueue, new CreditSerializer());
+        super.setRequestListener(new RequestListener<CreditRequest>() {
 
-    public LoanBrokerGateway(String producer, String consumer) throws NamingException, JMSException {
-
-        serializer = new CreditSerializer();
-        messagingGateway = new MessagingGateway(producer, consumer);
-        messagingGateway.setReceivedMessageListener(new MessageListener() {
-
-            public void onMessage(Message msg) {
-                try {
-                    TextMessage m = (TextMessage) msg;
-                    CreditRequest request = serializer.requestFromString(m.getText());
-                    receivedCreditRequest(request);
-                } catch (JMSException ex) {
-                    Logger.getLogger(LoanBrokerGateway.class.getName()).log(Level.SEVERE, null, ex);
-                }
+            @Override
+            public void receivedRequest(CreditRequest request) {
+                onCreditRequestReceived(request);
             }
-
         });
-        messagingGateway.openConnection();
     }
 
-    public abstract void receivedCreditRequest(CreditRequest request);
-
-    public boolean sendCreditHistory(CreditReply reply) {
-        try {
-            Message m = messagingGateway.createTextMessage(serializer.replyToString(reply));
-            return messagingGateway.sendMessage((TextMessage) m);
-        } catch (JMSException ex) {
-            Logger.getLogger(LoanBrokerGateway.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return false;
-    }
+    public abstract void onCreditRequestReceived(CreditRequest request);
 }

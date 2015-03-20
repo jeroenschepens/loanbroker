@@ -1,14 +1,9 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package loanbroker;
 
 import bank.BankQuoteReply;
-import bank.BankQuoteRequest;
 import client.*;
 import creditbureau.CreditReply;
-import creditbureau.CreditRequest;
+import java.util.ArrayList;
 import loanbroker.gui.LoanBrokerFrame;
 
 /**
@@ -17,56 +12,43 @@ import loanbroker.gui.LoanBrokerFrame;
  */
 public class LoanBroker {
 
-    private final ClientGateway clientG;
-    private final BankGateway bankG;
-    private final CreditGateway creditG;
-    private LoanBrokerFrame frame; // GUI
+    private final ClientGateway clientGateway;
+    private final CreditGateway creditGateway;
+    private final BankGateway bankGateway;
+    /**
+     * the collection of active clientRequests
+     */
+    private final ArrayList<ClientRequestProcess> activeClientProcesses;
+    private LoanBrokerFrame frame;
 
     /**
-     * Initializes attributes, and registers itself (method onClinetRequest) as
+     * Intializes attributes, and registers itself (method onClientRequest) as
      * the listener for new client requests
      *
      * @param clientRequestQueue
-     * @param clientReplyQueue
      * @param creditRequestQueue
      * @param creditReplyQueue
      * @param bankRequestQueue
      * @param bankReplyQueue
      * @throws java.lang.Exception
      */
-    public LoanBroker(String clientRequestQueue, String clientReplyQueue, String creditRequestQueue, String creditReplyQueue, String bankRequestQueue, String bankReplyQueue) throws Exception {
-        super();
+    public LoanBroker(String clientRequestQueue, String creditRequestQueue, String creditReplyQueue, String bankRequestQueue, String bankReplyQueue) throws Exception {
+        frame = new LoanBrokerFrame();
+        activeClientProcesses = new ArrayList<ClientRequestProcess>();
+        clientGateway = new ClientGateway(clientRequestQueue) {
 
-        clientG = new ClientGateway(clientReplyQueue, clientRequestQueue) {
             @Override
-            public void receivedLoanRequest(ClientRequest request) {
+            public void onClientRequestReceived(ClientRequest request) {
                 onClientRequest(request);
             }
-
         };
 
-        creditG = new CreditGateway(creditRequestQueue, creditReplyQueue) {
+        creditGateway = new CreditGateway(creditRequestQueue, creditReplyQueue);
+        bankGateway = new BankGateway(bankRequestQueue, bankReplyQueue);
 
-            @Override
-            public void receivedCreditRequest(CreditReply reply) {
-                onCreditReply(reply);
-            }
-        };
-
-        bankG = new BankGateway(bankRequestQueue, bankReplyQueue) {
-
-            @Override
-            public void receivedQuoteRequest(BankQuoteReply Reply) {
-                onBankReply(Reply);
-            }
-        };
-
-        /*
-         * Make the GUI
-         */
-        frame = new LoanBrokerFrame();
         java.awt.EventQueue.invokeLater(new Runnable() {
 
+            @Override
             public void run() {
 
                 frame.setVisible(true);
@@ -75,93 +57,45 @@ public class LoanBroker {
     }
 
     /**
-     * This method is called when a new client request arrives. It generates a
-     * CreditRequest and sends it to the CreditBureau.
+     * When a new client reques arrives: 1. a new instance of
+     * ClientRequestProcess is created for this request, 2. method
+     * notifyFinished is implemented to remove the process from
+     * activeClientProcesses 3. the new process is added to
+     * activeClientProcesses
      *
      * @param message the incomming message containng the ClientRequest
      */
     private void onClientRequest(ClientRequest request) {
-        try {
-            //ClientRequest request = clientSerializer.requestFromString(message.getText()); // de-serialize ClientRequest from the message
-            frame.addObject(null, request); // add the request to the GUI
+        final ClientRequestProcess p = new ClientRequestProcess(request, creditGateway, clientGateway, bankGateway) {
 
-            CreditRequest credit = createCreditRequest(request); // generate CreditRequest
+            @Override
+            public void notifySentClientReply(ClientRequestProcess process) {
+                activeClientProcesses.remove(process);
+            }
 
-            creditG.getCreditHistory(credit);
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage());
-        }
+            @Override
+            public void notifyReceivedCreditReply(ClientRequest clientRequest, CreditReply reply) {
+                frame.addObject(clientRequest, reply);
+            }
+
+            @Override
+            public void notifyReceivedBankReply(ClientRequest clientRequest, BankQuoteReply reply) {
+                frame.addObject(clientRequest, reply);
+            }
+        };
+        activeClientProcesses.add(p);
+        frame.addObject(null, request);
     }
 
     /**
-     * This method is called when a new credit reply arrives. It generates a
-     * BankQuoteRequest and sends it to the Bank.
+     * starts all gateways
      *
-     * @param message the incomming message containng the CreditReply
+     * @throws java.lang.Exception
      */
-    private void onCreditReply(CreditReply reply) {
-        try {
-            frame.addObject(null, reply); // add the reply to the GUI
-            BankQuoteRequest bank = createBankRequest(null, reply); // generate BankQuoteRequest
-            bankG.getBankQuote(bank);
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage());
-        }
-    }
-
-    /**
-     * This method is called when a new bank quote reply arrives. It generates a
-     * ClientReply and sends it to the LoanTestClient.
-     *
-     * @param message the incomming message containng the BankQuoteReply
-     */
-    private void onBankReply(BankQuoteReply reply) {
-        try {
-            frame.addObject(null, reply); // add the reply to the GUI
-            ClientReply client = createClientReply(reply); // generate ClientReply
-            clientG.offerLoan(client);
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage());
-        }
-    }
-
-    /**
-     * Generates a credit request based on the given client request.
-     *
-     * @param clientRequest
-     * @return
-     */
-    private CreditRequest createCreditRequest(ClientRequest clientRequest) {
-        return new CreditRequest(clientRequest.getSSN());
-    }
-
-    /**
-     * Generates a bank quote request based on the given client request and
-     * credit reply.
-     *
-     * @param creditReply
-     * @return
-     */
-    private BankQuoteRequest createBankRequest(ClientRequest clientRequest, CreditReply creditReply) {
-        int ssn = creditReply.getSSN();
-        int score = creditReply.getCreditScore();
-        int history = creditReply.getHistory();
-        int amount = 100; // this must be hard coded because we don't know to which clientRequest this creditReply belongs to!!! 
-        int time = 24;   // this must be hard coded because we don't know to which clientRequest this creditReply belongs to!!! 
-        if (clientRequest != null) {
-            amount = clientRequest.getAmount();
-            time = clientRequest.getTime();
-        }
-        return new BankQuoteRequest(ssn, score, history, amount, time);
-    }
-
-    /**
-     * Generates a client reply based on the given bank quote reply.
-     *
-     * @param creditReply
-     * @return
-     */
-    private ClientReply createClientReply(BankQuoteReply reply) {
-        return new ClientReply(reply.getInterest(), reply.getQuoteId());
+    public void start()
+            throws Exception {
+        clientGateway.start();
+        creditGateway.start();
+        bankGateway.start();
     }
 }

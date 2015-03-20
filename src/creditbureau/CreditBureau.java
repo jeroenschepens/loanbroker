@@ -14,17 +14,23 @@ import java.util.logging.Logger;
 public class CreditBureau {
 
     private final Random random = new Random(); // for random generation of replies
-    private CreditFrame frame; // GUI
-    private final LoanBrokerGateway loanGateway;
+    private CreditFrame frame;
+    private LoanBrokerGateway gateway;
 
-    public CreditBureau(String creditRequestQueue, String creditReplyQueue) throws Exception {
-        super();
-
-        loanGateway = new LoanBrokerGateway(creditReplyQueue, creditRequestQueue) {
+    public CreditBureau(String creditRequestQueue)
+            throws Exception {
+        gateway = new LoanBrokerGateway(creditRequestQueue) {
 
             @Override
-            public void receivedCreditRequest(CreditRequest request) {
-                onCreditRequest(request);
+            public void onCreditRequestReceived(CreditRequest request) {
+                try {
+                    frame.addRequest(request);
+                    CreditReply reply = computeReply(request);
+                    frame.addReply(request, reply);
+                    gateway.sendReply(request, reply);
+                } catch (Exception ex) {
+                    Logger.getLogger(CreditBureau.class.getName()).log(Level.SEVERE, null, ex);
+                }
             }
         };
 
@@ -32,30 +38,11 @@ public class CreditBureau {
         frame = new CreditFrame();
         java.awt.EventQueue.invokeLater(new Runnable() {
 
+            @Override
             public void run() {
-
                 frame.setVisible(true);
             }
         });
-    }
-
-    /**
-     * Processes a new request message by randomly generating a reply and
-     * sending it back.
-     *
-     * @param message the credit request message
-     */
-    private void onCreditRequest(CreditRequest request) {
-        try {
-            frame.addRequest(request);
-
-            CreditReply reply = computeReply(request);
-            loanGateway.sendCreditHistory(reply);
-
-            frame.addReply(request, reply);
-        } catch (Exception ex) {
-            Logger.getLogger(CreditBureau.class.getName()).log(Level.SEVERE, null, ex);
-        }
     }
 
     /**
@@ -73,4 +60,13 @@ public class CreditBureau {
         return new CreditReply(ssn, score, history);
     }
 
+    /**
+     * Opens connection to JMS,so that messages can be send and received.
+     *
+     * @throws java.lang.Exception
+     */
+    public void start()
+            throws Exception {
+        gateway.start();
+    }
 }

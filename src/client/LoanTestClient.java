@@ -1,19 +1,9 @@
 package client;
 
 import client.gui.ClientFrame;
-import java.util.Properties;
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.Destination;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.MessageProducer;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import javax.naming.Context;
-import javax.naming.InitialContext;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import jms.ReplyListener;
 
 /**
  * This class represents one Client Application. It: 1. Creates a ClientRequest
@@ -23,20 +13,11 @@ import javax.naming.InitialContext;
  */
 public class LoanTestClient {
 
-    private final LoanBrokerGateway loanGateway;
-    private ClientFrame frame; // GUI
+    private LoanBrokerGateway gateway;
+    private ClientFrame frame;
 
     public LoanTestClient(String name, String requestQueue, String replyQueue) throws Exception {
-        super();
-
-        loanGateway = new LoanBrokerGateway(requestQueue, replyQueue) {
-
-            @Override
-            public void loanOfferReceived(ClientReply reply) {
-                processLoanOffer(reply);
-            }
-        };
-
+        gateway = new LoanBrokerGateway(requestQueue, replyQueue);
         // create the GUI
         frame = new ClientFrame(name) {
 
@@ -61,19 +42,27 @@ public class LoanTestClient {
      * @param request
      */
     public void sendRequest(ClientRequest request) {
-        if (loanGateway.applyForLoan(request)) {
+        try {
+            gateway.sendRequest(request, new ReplyListener<ClientRequest, ClientReply>() {
+
+                @Override
+                public void onReply(ClientRequest request, ClientReply reply) {
+                    frame.addReply(request, reply);
+                }
+            });
             frame.addRequest(request);
+        } catch (Exception ex) {
+            Logger.getLogger(LoanTestClient.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
     /**
-     * This message is called whenever a new client reply message arrives. The
-     * message is de-serialized into a ClientReply, and the reply is shown in
-     * the GUI.
+     * Opens connection to JMS,so that messages can be send and received.
      *
-     * @param message
+     * @throws java.lang.Exception
      */
-    private void processLoanOffer(ClientReply reply) {
-        frame.addReply(null, reply);
+    public void start()
+            throws Exception {
+        gateway.start();
     }
 }

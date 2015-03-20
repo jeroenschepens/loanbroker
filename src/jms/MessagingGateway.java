@@ -1,8 +1,11 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
 package jms;
 
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -12,62 +15,87 @@ import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
-import javax.jms.TextMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
+/**
+ *
+ * @author Jeroen
+ */
 public class MessagingGateway {
 
-    private final Connection connection; // connection to the JMS server
-    protected Session session; // JMS session for creating producers, consumers and messages
-    private final Properties props = new Properties();
-    private final MessageProducer messageProducer;
-    private final MessageConsumer messageConsumer;
+    private final String ACTIVEMQ_CONTEXTFACTORY = "org.apache.activemq.jndi.ActiveMQInitialContextFactory";
+    private final String PROVIDER_URL = "tcp://localhost:61616";
 
-    public MessagingGateway(String producer, String consumer) throws NamingException, JMSException {
+    private Session session;
+    private Connection connection;
 
-        // connect to JMS
-        props.setProperty(Context.INITIAL_CONTEXT_FACTORY, "org.apache.activemq.jndi.ActiveMQInitialContextFactory");
-        props.setProperty(Context.PROVIDER_URL, "tcp://localhost:61616");
-        props.put(("queue." + producer), producer);
-        props.put(("queue." + consumer), consumer);
+    private Destination consumerDestination;
+    private Destination producerDestination;
 
-        // init connection
-        Context jndiContext = new InitialContext(props);
-        ConnectionFactory connectionFactory = (ConnectionFactory) jndiContext.lookup("ConnectionFactory");
+    private MessageConsumer consumer;
+    private MessageProducer producer;
+
+    public MessagingGateway(String producerQueue, String consumerQueue)
+            throws NamingException, JMSException {
+        Properties props = createProperties();
+        if (consumerQueue != null && !consumerQueue.equals("")) {
+            props.put("queue." + consumerQueue, consumerQueue);
+        }
+
+        if (producerQueue != null && !producerQueue.equals("")) {
+            props.put("queue." + producerQueue, producerQueue);
+        }
+
+        Context jdniContext = new InitialContext(props);
+        ConnectionFactory connectionFactory = (ConnectionFactory) jdniContext.lookup("ConnectionFactory");
         connection = connectionFactory.createConnection();
         session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
-        // connect to the sender channel
-        Destination senderDestination = (Destination) jndiContext.lookup(producer);
-        messageProducer = session.createProducer(senderDestination);
+        consumerDestination = (Destination) jdniContext.lookup(consumerQueue);
+        consumer = session.createConsumer(consumerDestination);
 
-        // connect to the receiver channel and register as a listener on it
-        Destination receiverDestination = (Destination) jndiContext.lookup(consumer);
-        messageConsumer = session.createConsumer(receiverDestination);
-
-    }
-
-    public TextMessage createTextMessage(String text) {
-        try {
-            return session.createTextMessage(text);
-        } catch (JMSException ex) {
-            Logger.getLogger(MessagingGateway.class.getName()).log(Level.SEVERE, null, ex);
-            return null;
+        if (producerQueue != null && !producerQueue.equals("")) {
+            producerDestination = (Destination) jdniContext.lookup(producerQueue);
+            producer = session.createProducer(producerDestination);
         }
     }
 
-    public boolean sendMessage(Message message) throws JMSException {
-        messageProducer.send(message);
-        return true;
+    public Destination getConsumerDestination() {
+        return consumerDestination;
     }
 
-    public void setReceivedMessageListener(MessageListener ml) throws JMSException {
-        messageConsumer.setMessageListener(ml);
+    public void setListener(MessageListener listener)
+            throws JMSException {
+        consumer.setMessageListener(listener);
     }
 
-    public void openConnection() throws NamingException, JMSException {
+    public void start()
+            throws JMSException {
         connection.start();
+    }
+
+    public void sendMessage(Message message)
+            throws JMSException {
+        producer.send(message);
+    }
+
+    public void sendMessage(Destination destination, Message message)
+            throws JMSException {
+        MessageProducer tempProducer = session.createProducer(destination);
+        tempProducer.send(message);
+    }
+
+    public Message createMessage(String body)
+            throws JMSException {
+        return session.createTextMessage(body);
+    }
+
+    private Properties createProperties() {
+        Properties props = new Properties();
+        props.setProperty(Context.INITIAL_CONTEXT_FACTORY, ACTIVEMQ_CONTEXTFACTORY);
+        props.setProperty(Context.PROVIDER_URL, PROVIDER_URL);
+        return props;
     }
 }
