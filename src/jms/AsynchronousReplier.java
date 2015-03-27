@@ -104,7 +104,7 @@ public class AsynchronousReplier<REQUEST, REPLY> {
      * @param reply to the request
      * @return true if the reply is sent succefully; false if sending reply
      * fails
-     * @throws messaging.GatewayException
+     * @throws javax.jms.JMSException
      */
     public synchronized boolean sendReply(REQUEST request, REPLY reply)
             throws JMSException {
