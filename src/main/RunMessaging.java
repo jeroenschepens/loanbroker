@@ -29,14 +29,14 @@ public class RunMessaging {
             LoanBroker broker = new LoanBroker(clientRequestQueue, creditRequestQueue, creditReplyQueue, ingRequestQueue, bankReplyQueue);
 
             // create a Client Application
-            LoanTestClient client = new LoanTestClient("The Hypotheker", clientRequestQueue, clientReplyQueue);
-            LoanTestClient client2 = new LoanTestClient("Fontys", clientRequestQueue, clientReplyQueue2);
+            LoanTestClient client = new LoanTestClient("J. Schepens Hypotheken B.V.", clientRequestQueue, clientReplyQueue);
+            LoanTestClient client2 = new LoanTestClient("Nolet & Zn. Hypotheken", clientRequestQueue, clientReplyQueue2);
 
             // create the CreditBureau Application
             CreditBureau creditBureau = new CreditBureau(creditRequestQueue);
 
             // create one Bank application
-            Bank ing = new Bank("ING", ingRequestQueue);
+            Bank ing = new Bank("DSB Bank", ingRequestQueue);
 
             // open all connections in the broker, client and credit applications
             broker.start();
