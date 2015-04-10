@@ -32,6 +32,7 @@ public class JMSSettings {
     public static final String BANK_1 = "BANK_1";
     public static final String BANK_2 = "BANK_2";
     public static final String BANK_3 = "BANK_3";
+    public static final String BANK_4 = "BANK_4";
     public static final String BANK_REPLY = "BANK_REPLY";
     private static RunMode runMode;
     private static HashMap<String, String> map;

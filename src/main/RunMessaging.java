@@ -27,6 +27,7 @@ public class RunMessaging {
             final String jeroenRequestQueue = JMSSettings.get(JMSSettings.BANK_1);
             final String patrickRequestQueue = JMSSettings.get(JMSSettings.BANK_2);
             final String alexanderRequestQueue = JMSSettings.get(JMSSettings.BANK_3);
+            final String broumelsRequestQueue = JMSSettings.get(JMSSettings.BANK_4);
             final String bankReplyQueue = JMSSettings.get(JMSSettings.BANK_REPLY);
 
             // create a LoanBroker middleware
@@ -34,6 +35,7 @@ public class RunMessaging {
             broker.addBank(jeroenRequestQueue, "#{amount} > 75000 && #{credit} > 600 && #{history} > 8");
             broker.addBank(patrickRequestQueue, "#{amount} > 10000 && #{amount} < 75000 && #{credit} > 400 && #{history} > 3");
             broker.addBank(alexanderRequestQueue, "#{amount} > 70000 && #{credit} > 500 && #{history} > 5");
+            broker.addBank(broumelsRequestQueue, "#{amount} > 1000000");
 
             // create a Client Application
             LoanTestClient client = new LoanTestClient("Bom Troumels Loan Shark", clientRequestQueue, clientReplyQueue);
@@ -43,6 +45,7 @@ public class RunMessaging {
             CreditBureau creditBureau = new CreditBureau(creditRequestQueue);
 
             // create one Bank application
+            Bank broumels = new Bank("BroumelBank", broumelsRequestQueue);
             Bank jeroen = new Bank("Jeroen Bank", jeroenRequestQueue);
             Bank patrick = new Bank("Patrick Bank", patrickRequestQueue);
             Bank alexander = new Bank("AlexanderBank", alexanderRequestQueue);
@@ -52,6 +55,7 @@ public class RunMessaging {
 
             creditBureau.start();
 
+            broumels.start();
             jeroen.start();
             patrick.start();
             alexander.start();
